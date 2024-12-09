@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package format="3">
+  <name>ros2libTester</name>
+  <version>0.0.1</version>
+  <description>ROS2 Communication Library compile, running tester</description>
+  <maintainer email="temp@google.com">JHSeo</maintainer>
+  <license>RTV</license>
+</package>

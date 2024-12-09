@@ -1,0 +1,4 @@
+std_msgs/Header header
+geometry_msgs/PoseStamped[] posearray
+---
+nav_msgs/Path poses

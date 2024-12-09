@@ -1,0 +1,14 @@
+args:
+  custom_msg_pkg_name: aimumt_msgs
+  custom_msg_pkg_path: 
+  custom_msg_pkg_include_path: 
+  proj_include_path: 
+  proj_src_path: 
+
+target_msgs:
+  publish: 
+  loop_publish: ReportBit
+  subscribe:
+  service_client: ReportDestination
+  service_server: 
+  
