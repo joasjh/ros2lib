@@ -27,6 +27,7 @@ private:
     std::map<std::string, rclcpp::PublisherBase::SharedPtr> m_publisherMap;
     std::map<rclcpp::PublisherBase::SharedPtr, std::string> m_namespaceMap;
     std::map<std::chrono::milliseconds, rclcpp::TimerBase::SharedPtr> m_timerMap;
+    std::map<std::pair<std::chrono::milliseconds, std::string>, std::function<void()>> m_timerCallbacks;
     std::multimap<std::chrono::milliseconds, rclcpp::PublisherBase::SharedPtr> m_loopPublisherMultiMap;
 
     std::map<std::string, std::any> m_loopCallbacks;
@@ -60,35 +61,52 @@ PublishNode::makeLoopPublisher(const std::string& nameSpace, std::chrono::millis
                 std::make_pair(period, m_publisherMap[interfaceName])
             );
 
-            // Activate timer for input period if not exist for this period
-            if(!m_timerMap.count(period)) {         
-                m_timerMap[period] = this->create_wall_timer(
-                    period,
-                    [this, typeName, period]() {
-                        auto iterRange = m_loopPublisherMultiMap.equal_range(period);
-                        for (auto it = iterRange.first; it != iterRange.second; ++it) {
+            // Acticate this period's timer callback with period-typeName pair
+            auto callbackKey = std::make_pair(period, typeName);
+            if (m_timerCallbacks.find(callbackKey) == m_timerCallbacks.end()) {
+                m_timerCallbacks[callbackKey] = [this, typeName, period]() {
+                    for (const auto& it : m_loopPublisherMultiMap) {
+                        if (it.first == period) {
                             try {
-                                std::string it_nameSpace = m_namespaceMap[it->second];
+                                std::string it_nameSpace = m_namespaceMap[it.second];
                                 T::SharedPtr msg = std::make_shared<T>();
-                                InvokeLoopCallback<T>(it_nameSpace, msg);                                    
+                                InvokeLoopCallback<T>(it_nameSpace, msg);
 
-                                typename rclcpp::Publisher<T>::SharedPtr publisher
-                                    = std::dynamic_pointer_cast<rclcpp::Publisher<T>>(it->second);
+                                typename rclcpp::Publisher<T>::SharedPtr publisher =
+                                    std::dynamic_pointer_cast<rclcpp::Publisher<T>>(it.second);
 
-                                // auto weak_publisher = std::weak_ptr<rclcpp::Publisher<T>>(std::dynamic_pointer_cast<rclcpp::Publisher<T>>(it->second));
-                                // auto publisher = weak_publisher.lock();
                                 if (publisher) {
                                     publisher->publish(*msg);
                                 } else {
-                                    ROSMsgHandler::GetInstance()->printLogMessage("Publisher type mismatch : " + it_nameSpace + "/" + typeName);
+                                    ROSMsgHandler::GetInstance()->printLogMessage(
+                                        "Publisher type mismatch: " + it_nameSpace + "/" + typeName
+                                    );
                                 }
                             } catch (const std::bad_any_cast& e) {
-                                ROSMsgHandler::GetInstance()->printLogMessage("Failed to cast callback func : " + std::string(e.what()));
+                                ROSMsgHandler::GetInstance()->printLogMessage(
+                                    "Failed to cast callback func: " + std::string(e.what())
+                                );
+                            }
+                        }
+                    }
+                };
+            }
+
+            // Activate timer for input period if not exist for this period
+            if (!m_timerMap.count(period)) {
+                m_timerMap[period] = this->create_wall_timer(
+                    period,
+                    [this, period]() {
+                        for (const auto& [key, callback] : m_timerCallbacks) {
+                            if (key.first == period) {
+                                callback();
                             }
                         }
                     }
                 );
-                ROSMsgHandler::GetInstance()->printLogMessage("Publish Timer with " + std::to_string(period.count()) + "ms run start");
+                ROSMsgHandler::GetInstance()->printLogMessage(
+                    "Publish Timer with " + std::to_string(period.count()) + "ms run start"
+                );
             }
         }
         else { 
@@ -113,20 +131,21 @@ PublishNode::destroyPublisher(const std::string& nameSpace)
 
         // No loop pub of its period, no timer of this period.
         for(auto it = m_loopPublisherMultiMap.begin(); it != m_loopPublisherMultiMap.end();) {
-            ROSMsgHandler::GetInstance()->printLogMessage("_5"); 
             if (it->second == publisherBase) {
-                ROSMsgHandler::GetInstance()->printLogMessage("_51");
                 if(m_loopPublisherMultiMap.count(it->first) == 1) {
-                    ROSMsgHandler::GetInstance()->printLogMessage("_52"); 
                     m_timerMap[it->first]->cancel();
-                    ROSMsgHandler::GetInstance()->printLogMessage("_53"); 
                     m_timerMap.erase(it->first);
+
+                    std::pair<std::chrono::milliseconds, std::string> callbackKey = it->first;
+                    auto callbacksIter = m_timerCallbacks.find(callbackKey);
+                    if (callbacksIter != m_timerCallbacks.end()) {
+                        m_timerCallbacks.erase(callbacksIter); 
+                    }
                 } else {
                     m_timerMap[it->first]->cancel();
                     it = m_loopPublisherMultiMap.erase(it);
                     m_timerMap[it->first]->reset();
                 }
-                ROSMsgHandler::GetInstance()->printLogMessage("_54"); 
                 // it = m_loopPublisherMultiMap.erase(it);
             } else {
                 ++it;

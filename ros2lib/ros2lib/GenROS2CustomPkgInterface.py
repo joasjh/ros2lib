@@ -256,7 +256,9 @@ def ros_field_type_to_default_value(var_type):
         default_value = '""'
     elif var_type == "bool":
         default_value = 'false'
-    elif var_type == "byte" or var_type == "int32":
+    elif var_type == "byte" \
+        or var_type == "int8" or var_type == "int16" or var_type == "int32" or var_type == "int64" \
+        or var_type == "uint8" or var_type == "uint16" or var_type == "uint32" or var_type == "uint64":
         default_value = '0'
     elif var_type == "float32":
         default_value = '0.f'
@@ -271,8 +273,11 @@ def ros_field_type_to_cpp_type(var_type):
         cpp_type = 'std::string'
     elif var_type == "bool":
         cpp_type = var_type
-    elif var_type == "byte" or var_type == "int32":
+    elif var_type == "byte":
         cpp_type = 'unsigned char'
+    elif var_type == "int8" or var_type == "int16" or var_type == "int32" or var_type == "int64" \
+        or var_type == "uint8" or var_type == "uint16" or var_type == "uint32" or var_type == "uint64":
+        cpp_type =  var_type + '_t'
     elif var_type == "float32":
         cpp_type = 'float'
     elif var_type == "float64":
